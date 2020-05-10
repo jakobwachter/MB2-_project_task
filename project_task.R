@@ -66,7 +66,10 @@ if(!require(stringr)){
   library(stringr)
 }
 
-setwd("D:\\JWachter\\project_task")
+working.dir<- choose.dir(caption = "Select working directory adapted to your computer")
+
+### Change Directory to previously defined working directory
+setwd(working.dir)
 
 ## loading input data
 
@@ -186,6 +189,7 @@ landklifmap<-ggplot()+
   theme_dark()
 
 landklifmap
+
 
 ggsave("landklifmap.png",landklifmap,width=210,height=160,unit="mm",device="png")
 
