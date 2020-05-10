@@ -41,14 +41,29 @@ if(!require(raster)){
   library(raster)
 }
 
-if(!require(snow)){
-  install.packages("snow")
-  library(snow)
-}
-
 if(!require(dplyr)){
   install.packages("dplyr")
   library(dplyr)
+}
+
+if(!require(rgeos)){
+  install.packages("rgeos")
+  library(rgeos)
+}
+
+if(!require(tidyr)){
+  install.packages("tidyr")
+  library(tidyr)
+}
+
+if(!require(sf)){
+  install.packages("sf")
+  library(sf)
+}
+
+if(!require(stringr)){
+  install.packages("stringr")
+  library(stringr)
 }
 
 setwd("D:\\JWachter\\project_task")
@@ -69,19 +84,18 @@ scPDSI_stack2000<- brick(scPDSI_stack[[109:348]])
 
 landklif_quadrants<-readOGR("Final60Quadrants_epsg25832.shp")
 
-# bioclimatic regions of bavaria shapefile
-
-bioclim_regions<-readOGR("NatGlied_BAY_Meynen-Schmithuesen_UTM.shp")
-
 ## check the data for consistency
 # raster data
 
-plot(scPDSI_stack2000)
 head(scPDSI_stack2000)
 tail(scPDSI_stack2000)
-mean(scPDSI_stack2000)
+plot(scPDSI_stack2000)
 
 # vector data
+
+head(landklif_quadrants)
+tail(landklif_quadrants)
+plot(landklif_quadrants)
 
 ## set projections 
 # define wanted coordinate system
@@ -93,10 +107,9 @@ defaultproj<- "+proj=tmerc +lat_0=0 +lon_0=9 +k=1 +x_0=3500000 +y_0=0 +ellps=bes
 
 scPDSI_stack2000@crs<-sp::CRS(defaultproj)
 landklif_quadrants<-spTransform(landklif_quadrants,CRS(defaultproj))
-bioclim_regions<-spTransform(bioclim_regions,CRS(defaultproj))
 
 ## after all data are in the same coordinate system, combine raster and vector data
-# first, subset scPDSI data to the extent to bavaria --> not necessary for Landklif quadrants and bioclimatic regions
+# first, subset scPDSI data to the extent to bavaria --> not necessary for Landklif quadrants
 
 # get bavaria boundaries from the raster package
 
@@ -113,65 +126,107 @@ scPDSI_stack_by<-mask(scPDSI_stack2000,bnd_by)
 
 # extract scPDSI values at extent of different shapefiles
 
-scPDSI_landklif_extracted<-as.matrix(extract(scPDSI_stack_by,landklif_quadrants))
-scPDSI_bioclim_extracted<- as.matrix(extract(scPDSI_stack_by,bioclim_regions))
+scPDSI_landklif_extracted<- raster::extract(scPDSI_stack_by, landklif_quadrants, df = T)
 
-# calculate examplewise statistics --> scPDSI_landklif consists of 60 entities that represent the Landklif quadrants; scPDSI_bioclim consists of 96 elements representing the bioclimatic regions 
+# group according to quadrant ID after mean
 
-mean(scPDSI_landklif_extracted[[1]])
-mean(scPDSI_landklif_extracted[[60]])
+landklif_agg<-aggregate(scPDSI_landklif_extracted[,2:ncol(scPDSI_landklif_extracted)],list(scPDSI_landklif_extracted$ID),mean)
+View(landklif_agg)
 
-# apply statistical functions to both spatialPolygon dataframes using the lapply function 
+# invert in order to write all timesteps as one column
 
-scPDSI_landklif_extracted_mean<- lapply(scPDSI_landklif_extracted, mean)
-scPDSI_landklif_extracted_min<- lapply(scPDSI_landklif_extracted, min)
-scPDSI_landklif_extracted_max<- lapply(scPDSI_landklif_extracted, max)
-scPDSI_landklif_extracted_sd<- lapply(scPDSI_landklif_extracted, sd)
+landklif_agg_inv<-landklif_agg %>% gather(timesteps,mean,scPDSI_raster_JW.109:scPDSI_raster_JW.348)
+landklif_agg_inv$timesteps<-as.factor(landklif_agg_inv$timesteps)
+View(landklif_agg_inv)
 
-scPDSI_bioclim_extracted_mean<- lapply(scPDSI_bioclim_extracted, mean)
-scPDSI_bioclim_extracted_min<- lapply(scPDSI_bioclim_extracted, min)
-scPDSI_bioclim_extracted_max<- lapply(scPDSI_bioclim_extracted, max)
-scPDSI_bioclim_extracted_sd<- lapply(scPDSI_bioclim_extracted, sd)
+# save as csv
 
-## write the results back to the shapefiles extra columns and change their class types for writing back to the files
+write.csv(landklif_agg,"landklif_agg.csv")
+write.csv(landklif_agg_inv,"landklif_agg_inv.csv")
 
-library(foreign)
+# loop to calculate statistics for every Quadrant over the timesteps
 
-landklif_quadrants$scPDSI_mean<-scPDSI_landklif_extracted_mean
-landklif_quadrants$scPDSI_min<-scPDSI_landklif_extracted_min
-landklif_quadrants$scPDSI_max<-scPDSI_landklif_extracted_max
-landklif_quadrants$scPDSI_sd<-scPDSI_landklif_extracted_sd
+for(i in 1:nrow(landklif_agg)){
+  landklif_quadrants@data[i,"timemean"]<- (sum(landklif_agg[i,2:241])/241)
+  landklif_quadrants@data[i,"timemin"]<- min(landklif_agg[i,2:241])
+  landklif_quadrants@data[i,"timemax"]<- max(landklif_agg[i,2:241])
+  landklif_quadrants@data[i,"timesd"]<- sd(landklif_agg[i,2:241])
+  if(i == 60){
+    rm(i)
+  }
+}
 
-class(landklif_quadrants$scPDSI_mean) = "integer"
-class(landklif_quadrants$scPDSI_min) = "integer"
-class(landklif_quadrants$scPDSI_max) = "integer"
-class(landklif_quadrants$scPDSI_sd) = "integer"
+# save back to the input shapefile for further analysis
 
-bioclim_regions$scPDSI_mean<-scPDSI_bioclim_extracted_mean
-bioclim_regions$scPDSI_min<-scPDSI_bioclim_extracted_min
-bioclim_regions$scPDSI_max<-scPDSI_bioclim_extracted_max
-bioclim_regions$scPDSI_sd<-scPDSI_bioclim_extracted_sd
-
-class(bioclim_regions$scPDSI_mean) = "integer"
-class(bioclim_regions$scPDSI_min) = "integer"
-class(bioclim_regions$scPDSI_max) = "integer"
-class(bioclim_regions$scPDSI_sd) = "integer"
-
-# write the results back to the files
-
-require(maptools)
-writeSpatialShape(landklif_quadrants,"Final60Quadrants_epsg25832.shp")
-writeSpatialShape(bioclim_regions,"NatGlied_BAY_Meynen-Schmithuesen_UTM.shp")
+writeOGR(landklif_quadrants, ".", layer = "landklif_quadrants_with_scPDSI_statistics", driver = "ESRI Shapefile", overwrite_layer = T)
 
 ## plot results for nice visualization
 
-timesteps<-seq(as.Date("2000/1/1"), by = "month",length.out = 240) 
+# first, we want to create an overview map with all plots over bavaria
+# containing their scPDSI mean values over all timesteps
 
-scPDSI_landklif_extracted_mean_mat<-as.matrix(scPDSI_landklif_extracted_mean)
-scPDSI_landklif_extracted_min_mat<-as.matrix(scPDSI_landklif_extracted_min)
-scPDSI_landklif_extracted_max_mat<-as.matrix(scPDSI_landklif_extracted_max)
-scPDSI_landklif_extracted_sd_mat<-as.matrix(scPDSI_landklif_extracted_sd)
+# reload shapefile as sf object
 
-DF_Landklif_mean<-cbind(scPDSI_landklif_extracted_mean,as.Date(timesteps))
-DF_Landklif_mean<-as.data.frame(DF_Landklif_mean)
-DF_Landklif_mean$timesteps<- as.Date(DF_Landklif_mean$timesteps)
+landklif_quadrants_sf<-st_read("landklif_quadrants_with_scPDSI_statistics.shp")
+
+# save bavaria boundaries shapefile and reload as sf object for plotting
+
+writeOGR(bnd_by, ".", layer = "bavariaboundaries", driver = "ESRI Shapefile")
+bnd_by_sf<-st_read("bavariaboundaries.shp")
+
+
+landklifmap<-ggplot()+
+  geom_sf(data=bnd_by_sf,fill="white") +
+  geom_sf(data=landklif_quadrants_sf,aes(fill=timemean,colour=landklif_quadrants_sf$Zones))+
+  scale_fill_gradient(low="tomato", high="skyblue")+
+  scale_color_discrete(l=40,c=350,name="climate zone(1-5) and LC class")+
+  ggtitle("mean scPDSI values for Landklif plots 2000-2019")+
+  xlab("Longitude")+
+  ylab("Latitude")+
+  theme_dark()
+
+landklifmap
+
+ggsave("landklifmap.png",landklifmap,width=210,height=160,unit="mm",device="png")
+
+# secondly, we visualize scPDSI statistics of every single plot over time as a graph
+# create sequence for all quadrants
+
+QN<-seq(1,nrow(landklif_agg))
+
+# for-loop to generate a dataframe for each Quadrant with the timesteps 
+# to plot each Quadrant separately and saving them directly to the working directory
+
+for(i in 1:length(QN)){               
+  Quadrant<-landklif_agg_inv$mean[seq(from = QN[i], to = dim(landklif_agg_inv)[1], by = nrow(landklif_agg))]
+  timesteps<-seq(as.Date("2000/1/1"), by = "month", length.out = 240)
+  stat_df<-data.frame(Quadrant,timesteps)
+  statplottime<-ggplot(stat_df)+
+    geom_line(aes(x=timesteps,y=Quadrant,color="red"))+
+    geom_smooth(aes(x=timesteps,y=Quadrant,color="blue"))+
+    scale_color_discrete(name="scPDSI trend")+
+    ggtitle("Development of scPDSI values over time",subtitle = paste0("Landklif-Quadrant: #", str_pad(QN[i],2,pad="0")))+
+    ylab("mean scPDSI Value")+
+    xlab("Time")+
+    theme_bw()+
+    theme(legend.position = "none")
+  
+  statplottime
+  outname<-paste0(getwd(),"/scPDSI_timeseries_Quadrant",str_pad(QN[i],2,pad="0"),".png")
+  ggsave(filename=outname,plot = statplottime,width=210,height=140,units="mm",device="png")
+  
+}
+
+# third visualization: create a row of boxplots 
+# representing the scPDSI value range of each Quadrant 
+
+Quadrantboxplots<-ggplot(landklif_agg_inv)+
+  geom_boxplot(aes(x=Group.1,y=mean,group=as.factor(Group.1),fill="red"))+
+  ylab("scPDSI value range")+
+  xlab("Quadrant")+
+  ggtitle("Overview of scPDSI value ranges for all Landklif Quadrants")+
+  theme(legend.position = "none")
+
+ggsave("Quadrant_Boxplots.png",Quadrantboxplots,width=210,height=160,unit="mm",device="png")
+
+
