@@ -1,7 +1,7 @@
 ### analyzing scPDSI trends for different sites, representing Landklif project quadrants in bavaria
 ### project work for MB1 - Programming and Geostatistics
 ### Jakob Wachter
-### 18th February 2020
+### 11th May 2020
 
 #########################################################################################
 # in this script, scPDSI (self-calibrated Palmer Drought Severity Index) over bavaria   #
@@ -13,7 +13,8 @@
 # Carina Kübert as a responsible person for the project can provide it.                 #
 # The results of this script will be an updated version of the input shapefile of the   #
 # Landklif Quadrants for further analysis, including statistical scPDSI data for each   #
-# quadrant, and graphs showing the scPDSI trends as a map as well as statistical trends.#                                                                              
+# quadrant, and graphs showing the scPDSI trends as a map as well as statistical        #
+# illustrations.                                                                        #                                                                              
 #########################################################################################
 
 ## loading all required packages and setting working directory
@@ -74,10 +75,13 @@ working.dir<- choose.dir(caption = "Select working directory adapted to your com
 setwd(working.dir)
 
 ## loading input data
+# create a cluster to optimize the available computing power for the script, this can be 
+# adapted dependent on the number of cores of your computer.
 
 beginCluster(2)
 
-# previously calculated scPDSI values in 100 fishnet polygons over germany - provided by Marius Philipp, added missing months of 2019 personally
+# previously calculated scPDSI values in 100 fishnet polygons over germany - 
+# provided by Marius Philipp, added missing months of 2019 personally
 
 scPDSI_stack<-brick("scPDSI_raster_JW.tif")
 
