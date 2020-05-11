@@ -1,17 +1,19 @@
-### analyzing scPDSI trends for different sites, bioclimatic divisions and Land Cover Classes in bavaria
+### analyzing scPDSI trends for different sites, representing Landklif project quadrants in bavaria
 ### project work for MB1 - Programming and Geostatistics
 ### Jakob Wachter
 ### 18th February 2020
 
 #########################################################################################
 # in this script, scPDSI (self-calibrated Palmer Drought Severity Index) over bavaria   #
-# should be analyzed. The scPDSI stack is applied to two vector layers, the landklif    #
-# project quadrants and the bioclimatic regions of Bavaria. By this, regional patterns  #
+# should be analyzed. The scPDSI stack is applied to a vector layer, representing       #
+# the landklif project quadrants. By this, regional patterns                            #
 # in the scPDSI trend should be recognized and can furthermore be interpreted.          #
 # The input data is under https://github.com/jakobwachter/MB2-_project_task.            #
-# The results of this script will be two updated versions of the input shapefiles       #
-# for further analysis and graphs showing the scPDSI trends for the regions             #
-# of the shapefiles that have been generated here.                                      #
+# It is also available on the University M-Drive in the Landklif-Folder, or             #
+# Carina Kübert as a responsible person for the project can provide it.                 #
+# The results of this script will be an updated version of the input shapefile of the   #
+# Landklif Quadrants for further analysis, including statistical scPDSI data for each   #
+# quadrant, and graphs showing the scPDSI trends as a map as well as statistical trends.#                                                                              
 #########################################################################################
 
 ## loading all required packages and setting working directory
@@ -128,6 +130,10 @@ scPDSI_stack_by<-crop(scPDSI_stack2000,bnd_by)
 scPDSI_stack_by<-mask(scPDSI_stack2000,bnd_by)
 
 # extract scPDSI values at extent of different shapefiles
+# note that data for quadrant @37 cannot be extracted here, because it is too close 
+# to the border and partially reaching into the czech republic, where the scPDSI data is not available.
+# It will be seen in the graphics as missing values later, constructing a buffer around the 
+# bavarian border from which the data should be extracted did not solve the problem.
 
 scPDSI_landklif_extracted<- raster::extract(scPDSI_stack_by, landklif_quadrants, df = T)
 
